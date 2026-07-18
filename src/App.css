@@ -32,21 +32,27 @@
   justify-content: space-between;
   align-items: center;
   font-size: 16px;
-  padding: 8px 0;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
   border-bottom: 1px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #d6eaf8;
 }
 
 .toolbar {
   flex: 1;
-  text-align: center;
+  text-align: left;
 }
 
 .toolbar-btn {
   background: none;
   border: none;
-  font-size: 22px;
+  font-size: 16px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
   transition: background 0.15s;
 }
@@ -58,6 +64,14 @@
 .status-bar {
   flex: 1;
   text-align: right;
+}
+
+.separator {
+  width: 2px;
+  height: 20px;
+  background-color: #999;
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .work-area {

@@ -81,6 +81,7 @@ function App() {
             📁
           </button>
         </div>
+        <div className="separator" />
         <div className="status-bar">
           {total > 0 ? `${images.length} / ${total}` : "状态栏"}
         </div>

@@ -23,42 +23,38 @@ mod tests {
         img.save(path).unwrap();
     }
 
-    #[tokio::test]
-    async fn test_list_images_pagination() {
+    #[test]
+    fn test_list_images_pagination() {
         let tmp_dir = std::env::temp_dir().join("list_pagination_test");
         std::fs::create_dir_all(&tmp_dir).unwrap();
 
-        // Create 5 test images
+        let mut all_paths = Vec::new();
         for i in 0..5 {
             let path = tmp_dir.join(format!("img_{i}.png"));
             create_test_image(&path, 100, 100);
+            all_paths.push(path);
         }
 
-        let dir = tmp_dir.to_string_lossy().to_string();
-
         // First page: offset=0, limit=2
-        let resp = image::list_images(dir.clone(), 0, 2).await.unwrap();
-        assert_eq!(resp.total, 5);
-        assert_eq!(resp.items.len(), 2);
-        for item in &resp.items {
+        let (items, tasks) = image::build_entries(&all_paths, 0, 2).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(tasks.len(), 2);
+        for item in &items {
+            assert!(!item.thumb_ready);
             assert!(!item.thumb_path.is_empty());
-            assert!(Path::new(&item.thumb_path).exists());
         }
 
         // Second page: offset=2, limit=2
-        let resp = image::list_images(dir.clone(), 2, 2).await.unwrap();
-        assert_eq!(resp.total, 5);
-        assert_eq!(resp.items.len(), 2);
+        let (items, _) = image::build_entries(&all_paths, 2, 2).unwrap();
+        assert_eq!(items.len(), 2);
 
         // Last page: offset=4, limit=2 → only 1 item
-        let resp = image::list_images(dir.clone(), 4, 2).await.unwrap();
-        assert_eq!(resp.total, 5);
-        assert_eq!(resp.items.len(), 1);
+        let (items, _) = image::build_entries(&all_paths, 4, 2).unwrap();
+        assert_eq!(items.len(), 1);
 
         // Beyond end: offset=10, limit=2 → 0 items
-        let resp = image::list_images(dir.clone(), 10, 2).await.unwrap();
-        assert_eq!(resp.total, 5);
-        assert_eq!(resp.items.len(), 0);
+        let (items, _) = image::build_entries(&all_paths, 10, 2).unwrap();
+        assert_eq!(items.len(), 0);
 
         std::fs::remove_dir_all(&tmp_dir).ok();
     }

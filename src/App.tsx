@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import "./App.css";
@@ -10,11 +11,17 @@ interface ImageEntry {
   path: string;
   name: string;
   thumb_path: string;
+  thumb_ready: boolean;
 }
 
 interface ListImagesResponse {
   total: number;
   items: ImageEntry[];
+}
+
+interface ThumbProgress {
+  current: number;
+  total: number;
 }
 
 function App() {
@@ -23,11 +30,12 @@ function App() {
   const [folderPath, setFolderPath] = useState("");
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const workAreaRef = useRef<HTMLDivElement>(null);
 
   const loadPage = useCallback(
     async (currentFolder: string, currentOffset: number, append: boolean) => {
-      setLoading(true);
       try {
         const resp = await invoke<ListImagesResponse>("list_images", {
           path: currentFolder,
@@ -37,12 +45,41 @@ function App() {
         setTotal(resp.total);
         setImages((prev) => (append ? [...prev, ...resp.items] : resp.items));
         setOffset(currentOffset + resp.items.length);
-      } finally {
+        if (resp.items.length > 0) {
+          setLoading(true);
+          setProgressCurrent(0);
+          setProgressTotal(resp.items.length);
+        }
+      } catch (e) {
         setLoading(false);
       }
     },
     [],
   );
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<ThumbProgress>("thumb-progress", (event) => {
+      const { current, total } = event.payload;
+      setProgressCurrent(current);
+      setProgressTotal(total);
+      setImages((prev) => {
+        const updated = [...prev];
+        if (current <= updated.length) {
+          updated[current - 1] = { ...updated[current - 1], thumb_ready: true };
+        }
+        return updated;
+      });
+      if (current >= total) {
+        setLoading(false);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   async function handleOpenFolder() {
     const selected = await open({ directory: true, multiple: false });
@@ -75,16 +112,10 @@ function App() {
 
   return (
     <div className="layout">
-      <div className="bar-row">
-        <div className="toolbar">
-          <button className="toolbar-btn" onClick={handleOpenFolder} title="打开文件夹">
-            📁
-          </button>
-        </div>
-        <div className="separator" />
-        <div className="status-bar">
-          {total > 0 ? `${images.length} / ${total}` : "状态栏"}
-        </div>
+      <div className="toolbar">
+        <button className="toolbar-btn" onClick={handleOpenFolder} title="打开文件夹">
+          📁
+        </button>
       </div>
       <div className="work-area" ref={workAreaRef}>
         {images.length === 0 ? (
@@ -99,20 +130,41 @@ function App() {
                 key={img.path}
                 className="image-item"
                 onDoubleClick={async () => {
-                  console.log("double-click:", img.path);
                   try {
                     await openPath(img.path);
-                    console.log("openPath success");
                   } catch (e) {
                     console.error("openPath failed:", e);
                   }
                 }}
               >
-                <img src={convertFileSrc(img.thumb_path)} alt={img.name} />
+                {img.thumb_ready ? (
+                  <img src={convertFileSrc(img.thumb_path)} alt={img.name} />
+                ) : (
+                  <div className="thumb-placeholder" />
+                )}
                 <span className="image-name">{img.name}</span>
               </div>
             ))}
           </div>
+        )}
+      </div>
+      <div className="status-bar">
+        {loading ? (
+          <>
+            <div className="progress-bar">
+              <div
+                className="progress-bar-fill"
+                style={{
+                  width: progressTotal > 0 ? `${(progressCurrent / progressTotal) * 100}%` : "0%",
+                }}
+              />
+            </div>
+            <span className="progress-text">
+              已完成 {progressCurrent}/{progressTotal}
+            </span>
+          </>
+        ) : (
+          <span>{total > 0 ? `${images.length} / ${total}` : ""}</span>
         )}
       </div>
     </div>

@@ -97,7 +97,15 @@ function App() {
               <div
                 key={img.path}
                 className="image-item"
-                onDoubleClick={() => openPath(img.path)}
+                onDoubleClick={async () => {
+                  console.log("double-click:", img.path);
+                  try {
+                    await openPath(img.path);
+                    console.log("openPath success");
+                  } catch (e) {
+                    console.error("openPath failed:", e);
+                  }
+                }}
               >
                 <img src={convertFileSrc(img.thumb_path)} alt={img.name} />
                 <span className="image-name">{img.name}</span>

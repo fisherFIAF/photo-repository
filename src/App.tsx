@@ -20,6 +20,7 @@ interface ListImagesResponse {
 }
 
 interface ThumbProgress {
+  index: number;
   current: number;
   total: number;
 }
@@ -33,6 +34,7 @@ function App() {
   const [progressCurrent, setProgressCurrent] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const workAreaRef = useRef<HTMLDivElement>(null);
+  const baseIndexRef = useRef(0);
 
   const loadPage = useCallback(
     async (currentFolder: string, currentOffset: number, append: boolean) => {
@@ -43,7 +45,10 @@ function App() {
           limit: PAGE_SIZE,
         });
         setTotal(resp.total);
-        setImages((prev) => (append ? [...prev, ...resp.items] : resp.items));
+        setImages((prev) => {
+          baseIndexRef.current = append ? prev.length : 0;
+          return append ? [...prev, ...resp.items] : resp.items;
+        });
         setOffset(currentOffset + resp.items.length);
         if (resp.items.length > 0) {
           setLoading(true);
@@ -60,13 +65,14 @@ function App() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<ThumbProgress>("thumb-progress", (event) => {
-      const { current, total } = event.payload;
+      const { index, current, total } = event.payload;
       setProgressCurrent(current);
       setProgressTotal(total);
       setImages((prev) => {
         const updated = [...prev];
-        if (current <= updated.length) {
-          updated[current - 1] = { ...updated[current - 1], thumb_ready: true };
+        const actualIndex = baseIndexRef.current + index;
+        if (actualIndex < updated.length) {
+          updated[actualIndex] = { ...updated[actualIndex], thumb_ready: true };
         }
         return updated;
       });

@@ -1,34 +1,38 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 
 use tauri::{AppHandle, Emitter};
 
 use crate::thumbnail::{generate_thumbnail, thumb_path_for};
 
 const EVENT_THUMB_PROGRESS: &str = "thumb-progress";
+const MAX_CONCURRENT: usize = 10;
 
 type ThumbTask = (PathBuf, PathBuf);
 
 #[derive(Clone, serde::Serialize)]
-pub struct ThumbProgress {
-    pub current: usize,
-    pub total: usize,
+struct ThumbProgress {
+    index: usize,
+    current: usize,
+    total: usize,
 }
 
 #[derive(serde::Serialize)]
-pub struct ListImagesResponse {
-    pub total: usize,
-    pub items: Vec<ImageEntry>,
+pub(crate) struct ListImagesResponse {
+    total: usize,
+    items: Vec<ImageEntry>,
 }
 
 #[derive(serde::Serialize)]
-pub struct ImageEntry {
-    pub path: String,
-    pub name: String,
-    pub thumb_path: String,
-    pub thumb_ready: bool,
+pub(crate) struct ImageEntry {
+    path: String,
+    name: String,
+    thumb_path: String,
+    thumb_ready: bool,
 }
 
-pub(crate) fn scan_image_files(dir_path: &Path) -> Result<Vec<PathBuf>, String> {
+fn scan_image_files(dir_path: &Path) -> Result<Vec<PathBuf>, String> {
     let image_extensions = [
         "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif",
     ];
@@ -47,7 +51,7 @@ pub(crate) fn scan_image_files(dir_path: &Path) -> Result<Vec<PathBuf>, String> 
     Ok(paths)
 }
 
-pub(crate) fn build_entries(
+fn build_entries(
     all_paths: &[PathBuf],
     offset: usize,
     limit: usize,
@@ -73,33 +77,74 @@ pub(crate) fn build_entries(
 }
 
 #[tauri::command]
-pub async fn list_images(
+pub(crate) async fn list_images(
     app: AppHandle,
     path: String,
     offset: usize,
     limit: usize,
 ) -> Result<ListImagesResponse, String> {
+    eprintln!("[list_images] start: path={}, offset={}, limit={}", path, offset, limit);
     let dir_path = Path::new(&path);
     let all_paths = scan_image_files(dir_path)?;
     let total = all_paths.len();
+    eprintln!("[list_images] scanned {} image files", total);
     let (items, thumb_tasks) = build_entries(&all_paths, offset, limit)?;
+    eprintln!("[list_images] built {} entries, {} thumb tasks", items.len(), thumb_tasks.len());
 
     let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
+    std::thread::spawn(move || {
         let total = thumb_tasks.len();
-        for (i, (src, dest)) in thumb_tasks.into_iter().enumerate() {
-            if generate_thumbnail(&src, &dest).is_ok() {
-                let _ = app_clone.emit(
-                    EVENT_THUMB_PROGRESS,
-                    ThumbProgress {
-                        current: i + 1,
-                        total,
-                    },
-                );
-            }
+        eprintln!("[thumb] spawning {} worker threads", MAX_CONCURRENT.min(total));
+        let queue = Arc::new(Mutex::new(
+            thumb_tasks
+                .into_iter()
+                .enumerate()
+                .collect::<Vec<_>>(),
+        ));
+        let cv = Arc::new(Condvar::new());
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        for worker_id in 0..MAX_CONCURRENT.min(total) {
+            let queue = queue.clone();
+            let cv = cv.clone();
+            let app = app_clone.clone();
+            let completed = completed.clone();
+            std::thread::spawn(move || {
+                eprintln!("[thumb] worker-{} started", worker_id);
+                loop {
+                    let task = {
+                        let mut guard = queue.lock().unwrap();
+                        if guard.is_empty() {
+                            cv.notify_one();
+                            return;
+                        }
+                        guard.pop()
+                    };
+                    let Some((i, (src, dest))) = task else {
+                        return;
+                    };
+                    eprintln!("[thumb] worker-{} processing task {}: {}", worker_id, i, src.display());
+                    if generate_thumbnail(&src, &dest).is_ok() {
+                        let current = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                        eprintln!("[thumb] task {} done ({}/{})", i, current, total);
+                        let _ = app.emit(
+                            EVENT_THUMB_PROGRESS,
+                            ThumbProgress {
+                                index: i,
+                                current,
+                                total,
+                            },
+                        );
+                    } else {
+                        eprintln!("[thumb] task {} generate_thumbnail FAILED", i);
+                    }
+                }
+            });
         }
+        eprintln!("[thumb] all workers spawned");
     });
 
+    eprintln!("[list_images] returning response with {} items", items.len());
     Ok(ListImagesResponse { total, items })
 }
 

@@ -61,7 +61,10 @@ fn build_entries(
     let mut thumb_tasks: Vec<ThumbTask> = Vec::new();
     for entry_path in page {
         let tp = thumb_path_for(entry_path)?;
-        thumb_tasks.push((entry_path.clone(), tp.clone()));
+        let ready = tp.exists();
+        if !ready {
+            thumb_tasks.push((entry_path.clone(), tp.clone()));
+        }
         items.push(ImageEntry {
             path: entry_path.to_string_lossy().to_string(),
             name: entry_path
@@ -70,7 +73,7 @@ fn build_entries(
                 .to_string_lossy()
                 .to_string(),
             thumb_path: tp.to_string_lossy().to_string(),
-            thumb_ready: false,
+            thumb_ready: ready,
         });
     }
     Ok((items, thumb_tasks))
@@ -207,5 +210,43 @@ mod tests {
         assert_eq!(items.len(), 0);
 
         std::fs::remove_dir_all(&tmp_dir).ok();
+    }
+
+    #[test]
+    fn test_build_entries_thumb_ready_reflects_cache() {
+        use crate::thumbnail::generate_thumbnail;
+
+        let dir = std::env::var("TEST_DIR").expect("需要设置 TEST_DIR 环境变量，如: TEST_DIR=/home/fisher/Pictures cargo test");
+        let dir = PathBuf::from(dir);
+        let all_paths = scan_image_files(&dir).expect("扫描目录失败");
+        assert!(!all_paths.is_empty(), "目录中未找到图片: {}", dir.display());
+        eprintln!("[test] 目录: {} ({} 张图片)", dir.display(), all_paths.len());
+
+        // 清理缓存，从"无缓存"状态开始
+        for p in &all_paths {
+            if let Ok(tp) = crate::thumbnail::thumb_path_for(p) {
+                std::fs::remove_file(&tp).ok();
+            }
+        }
+
+        // 阶段 1：无缓存 → 全部 false
+        let (items, tasks) = build_entries(&all_paths, 0, 100).unwrap();
+        assert_eq!(tasks.len(), all_paths.len());
+        for item in &items {
+            assert!(!item.thumb_ready, "无缓存应为 false: {}", item.name);
+        }
+        eprintln!("[test] 阶段 1 通过: 无缓存, {} 个任务", tasks.len());
+
+        // 阶段 2：生成全部缩略图后再查 → 全部 true，0 个任务
+        for (src, dest) in &tasks {
+            generate_thumbnail(src, dest).unwrap();
+        }
+        let (items, tasks) = build_entries(&all_paths, 0, 100).unwrap();
+        assert_eq!(tasks.len(), 0, "全部缓存后不应有任务");
+        for item in &items {
+            assert!(item.thumb_ready, "有缓存应为 true: {}", item.name);
+            assert!(Path::new(&item.thumb_path).exists(), "文件应存在: {}", item.thumb_path);
+        }
+        eprintln!("[test] 阶段 2 通过: 全部缓存, 0 个任务");
     }
 }

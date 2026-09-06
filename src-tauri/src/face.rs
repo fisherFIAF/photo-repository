@@ -13,7 +13,7 @@ use crate::tags::{
 };
 
 const EVENT_FACE_TAG_PROGRESS: &str = "face-tag-progress";
-const MAX_FACE_WORKERS: usize = 3;
+const MAX_FACE_WORKERS: usize = 10;
 const DET_MODEL_NAME: &str = "det_10g.onnx";
 const REC_MODEL_NAME: &str = "w600k_r50.onnx";
 const BUFFALO_L_URL: &str =

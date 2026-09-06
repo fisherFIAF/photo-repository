@@ -16,6 +16,7 @@ pub fn run() {
             compare::copy_file,
             tags::list_person_tags,
             tags::create_person_tag,
+            tags::rename_person_tag,
             tags::attach_samples_to_tag,
             tags::list_inbox_face_samples,
             tags::list_tag_samples,

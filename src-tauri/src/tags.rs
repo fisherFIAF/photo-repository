@@ -291,6 +291,40 @@ pub(crate) fn create_person_tag(name: String) -> Result<PersonTag, String> {
     Ok(tag)
 }
 
+#[tauri::command]
+pub(crate) fn rename_person_tag(tag_id: String, name: String) -> Result<PersonTag, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("标签名不能为空".into());
+    }
+    let mut file = load_tags()?;
+    if file.tags.iter().any(|t| t.id != tag_id && t.name == name) {
+        return Err(format!("标签已存在: {name}"));
+    }
+    let tag = file
+        .tags
+        .iter_mut()
+        .find(|t| t.id == tag_id)
+        .ok_or_else(|| format!("标签不存在: {tag_id}"))?;
+    tag.name = name.clone();
+    let updated = tag.clone();
+    save_tags(&file)?;
+
+    let meta_path = person_dir(&tag_id)?.join("meta.json");
+    if meta_path.exists() {
+        let text = std::fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
+        let mut meta: PersonMeta = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        meta.name = name;
+        std::fs::write(
+            &meta_path,
+            serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(updated)
+}
+
 fn chrono_like_now() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

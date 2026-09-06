@@ -125,6 +125,8 @@ function App() {
   const [tagProgress, setTagProgress] = useState<FaceTagProgress | null>(null);
   const [tagSamplesMap, setTagSamplesMap] = useState<Record<string, FaceSample[]>>({});
   const [selectedTagSampleKeys, setSelectedTagSampleKeys] = useState<Set<string>>(new Set());
+  const [editingTagId, setEditingTagId] = useState("");
+  const [editingTagName, setEditingTagName] = useState("");
 
   const tagSampleKey = (tagId: string, sampleId: string) => `${tagId}:${sampleId}`;
 
@@ -509,6 +511,34 @@ function App() {
       setFacesStatus(`删除失败: ${e}`);
     }
     setFacesBusy(false);
+  }
+
+  async function handleRenameTag(tagId: string) {
+    const name = editingTagName.trim();
+    if (!name) {
+      setFacesStatus("标签名不能为空");
+      return;
+    }
+    const current = personTags.find((t) => t.id === tagId);
+    if (current?.name === name) {
+      setEditingTagId("");
+      return;
+    }
+    setFacesBusy(true);
+    try {
+      await invoke<PersonTag>("rename_person_tag", { tagId, name });
+      setEditingTagId("");
+      await refreshTags();
+      setFacesStatus(`已重命名为「${name}」`);
+    } catch (e) {
+      setFacesStatus(`重命名失败: ${e}`);
+    }
+    setFacesBusy(false);
+  }
+
+  function startEditTag(tag: PersonTag) {
+    setEditingTagId(tag.id);
+    setEditingTagName(tag.name);
   }
 
   async function handleDeleteTagSamples(tagId: string, sampleIds: string[]) {
@@ -971,16 +1001,59 @@ function App() {
                 return (
                   <li key={t.id} className="tag-block">
                     <div className="tag-row">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={selectedTagIds.has(t.id)}
-                          onChange={() => toggleTag(t.id)}
-                        />
-                        <span className="tag-name">{t.name}</span>
-                        <span className="tag-sample-count">{samples.length} 个模板</span>
-                      </label>
+                      <div className="tag-row-main">
+                        <label className="tag-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedTagIds.has(t.id)}
+                            onChange={() => toggleTag(t.id)}
+                          />
+                        </label>
+                        {editingTagId === t.id ? (
+                          <div className="tag-name-edit">
+                            <input
+                              className="faces-input tag-name-input"
+                              value={editingTagName}
+                              disabled={facesBusy}
+                              onChange={(e) => setEditingTagName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameTag(t.id);
+                                if (e.key === "Escape") setEditingTagId("");
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              className="faces-btn"
+                              disabled={facesBusy}
+                              onClick={() => handleRenameTag(t.id)}
+                            >
+                              保存
+                            </button>
+                            <button
+                              className="faces-btn"
+                              disabled={facesBusy}
+                              onClick={() => setEditingTagId("")}
+                            >
+                              取消
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="tag-name">{t.name}</span>
+                            <span className="tag-sample-count">{samples.length} 个模板</span>
+                          </>
+                        )}
+                      </div>
                       <div className="tag-row-actions">
+                        {editingTagId !== t.id && (
+                          <button
+                            className="faces-btn"
+                            disabled={facesBusy}
+                            onClick={() => startEditTag(t)}
+                          >
+                            重命名
+                          </button>
+                        )}
                         {selectedInTag.length > 0 && (
                           <button
                             className="faces-btn danger"

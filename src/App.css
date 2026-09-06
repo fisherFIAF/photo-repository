@@ -444,6 +444,35 @@ html, body, #root {
   color: #888;
 }
 
+.tag-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tag-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tag-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tag-name-input {
+  flex: 1;
+  min-width: 120px;
+  max-width: 240px;
+}
+
 .tag-row label {
   display: flex;
   align-items: center;

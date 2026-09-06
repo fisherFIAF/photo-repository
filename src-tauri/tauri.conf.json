@@ -22,7 +22,11 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$HOME/.cache/photo-repository/thumbs/**", "**"]
+          "allow": [
+            "$HOME/.cache/photo-repository/thumbs/**",
+            "$HOME/.cache/photo-repository/faces/**",
+            "**"
+          ]
         }
       }
     }

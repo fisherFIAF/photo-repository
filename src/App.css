@@ -129,6 +129,12 @@ html, body, #root {
   cursor: pointer;
 }
 
+.thumb-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
 .image-item img {
   width: 120px;
   height: 120px;
@@ -144,12 +150,50 @@ html, body, #root {
   background: #e8e8e8;
 }
 
+.tag-badges {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  right: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.tag-badge {
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(25, 118, 210, 0.9);
+  color: #fff;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .image-name {
   font-size: 12px;
   color: #555;
   text-align: center;
   word-break: break-all;
   max-width: 120px;
+}
+
+.toolbar-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.toolbar-filter select {
+  font-size: 12px;
+  padding: 1px 4px;
+  border: 1px solid #b0c4de;
+  border-radius: 3px;
+  background: #fff;
 }
 
 /* --- Toolbar active state --- */
@@ -186,6 +230,203 @@ html, body, #root {
 .layout.compare-mode .compare-work-area,
 .layout.compare-mode .compare-status-bar {
   display: flex;
+}
+
+.faces-work-area {
+  display: none;
+  flex: 1;
+  overflow: auto;
+  flex-direction: column;
+  background: #fafafa;
+}
+
+.faces-status-bar {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 6px;
+  border-top: 1px solid #d0d0d0;
+}
+
+.layout.faces-mode .work-area,
+.layout.faces-mode .status-bar,
+.layout.faces-mode .compare-work-area,
+.layout.faces-mode .compare-status-bar {
+  display: none;
+}
+
+.layout.faces-mode .faces-work-area,
+.layout.faces-mode .faces-status-bar {
+  display: flex;
+}
+
+.faces-panel {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.faces-section h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.faces-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.faces-btn {
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 1px solid #c5c5c5;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.faces-btn:hover:not(:disabled) {
+  background: #eef5fb;
+}
+
+.faces-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.faces-btn.primary {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1565c0;
+}
+
+.faces-btn.primary:hover:not(:disabled) {
+  background: #1565c0;
+}
+
+.faces-btn.danger {
+  color: #c62828;
+  border-color: #ef9a9a;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.faces-input {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid #c5c5c5;
+  border-radius: 4px;
+  min-width: 160px;
+}
+
+.faces-hint {
+  font-size: 12px;
+  color: #777;
+}
+
+.sample-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sample-grid.compact {
+  margin-top: 8px;
+}
+
+.sample-card {
+  width: 72px;
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #eee;
+}
+
+.sample-card.selected {
+  border-color: #1976d2;
+}
+
+.sample-card img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  display: block;
+}
+
+.sample-card input[type="checkbox"] {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+}
+
+.tag-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+}
+
+.tag-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tag-name {
+  font-size: 14px;
+}
+
+.tag-name.active {
+  color: #1565c0;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.faces-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #555;
+}
+
+.faces-progress .progress-bar {
+  flex: 0 0 40%;
+  max-width: 240px;
+}
+
+.faces-status {
+  font-size: 13px;
+  color: #333;
+  padding: 8px 10px;
+  background: #e3f2fd;
+  border-radius: 4px;
 }
 
 /* --- Compare toolbar --- */

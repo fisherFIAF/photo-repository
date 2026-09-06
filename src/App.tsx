@@ -123,8 +123,10 @@ function App() {
   const [folderTagMap, setFolderTagMap] = useState<Record<string, string[]>>({});
   const [filterTagId, setFilterTagId] = useState<string>("");
   const [tagProgress, setTagProgress] = useState<FaceTagProgress | null>(null);
-  const [activeTagSamples, setActiveTagSamples] = useState<FaceSample[]>([]);
-  const [previewTagId, setPreviewTagId] = useState<string>("");
+  const [tagSamplesMap, setTagSamplesMap] = useState<Record<string, FaceSample[]>>({});
+  const [selectedTagSampleKeys, setSelectedTagSampleKeys] = useState<Set<string>>(new Set());
+
+  const tagSampleKey = (tagId: string, sampleId: string) => `${tagId}:${sampleId}`;
 
   const tagNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -132,14 +134,44 @@ function App() {
     return m;
   }, [personTags]);
 
+  const refreshTagSamples = useCallback(async (tags: PersonTag[]) => {
+    if (tags.length === 0) {
+      setTagSamplesMap({});
+      return;
+    }
+    const entries = await Promise.all(
+      tags.map(async (t) => {
+        try {
+          const samples = await invoke<FaceSample[]>("list_tag_samples", { tagId: t.id });
+          return [t.id, samples] as const;
+        } catch (e) {
+          console.error("list_tag_samples failed:", e);
+          return [t.id, []] as const;
+        }
+      }),
+    );
+    setTagSamplesMap(Object.fromEntries(entries));
+  }, []);
+
+  const refreshOneTagSamples = useCallback(async (tagId: string) => {
+    try {
+      const samples = await invoke<FaceSample[]>("list_tag_samples", { tagId });
+      setTagSamplesMap((prev) => ({ ...prev, [tagId]: samples }));
+    } catch (e) {
+      console.error("list_tag_samples failed:", e);
+      setTagSamplesMap((prev) => ({ ...prev, [tagId]: [] }));
+    }
+  }, []);
+
   const refreshTags = useCallback(async () => {
     try {
       const tags = await invoke<PersonTag[]>("list_person_tags");
       setPersonTags(tags);
+      await refreshTagSamples(tags);
     } catch (e) {
       console.error("list_person_tags failed:", e);
     }
-  }, []);
+  }, [refreshTagSamples]);
 
   const refreshInbox = useCallback(async () => {
     try {
@@ -172,19 +204,6 @@ function App() {
   useEffect(() => {
     if (folderPath) refreshFolderTags(folderPath);
   }, [folderPath, refreshFolderTags]);
-
-  useEffect(() => {
-    if (!previewTagId) {
-      setActiveTagSamples([]);
-      return;
-    }
-    invoke<FaceSample[]>("list_tag_samples", { tagId: previewTagId })
-      .then(setActiveTagSamples)
-      .catch((e) => {
-        console.error(e);
-        setActiveTagSamples([]);
-      });
-  }, [previewTagId]);
 
   // --- Grid view logic ---
   const loadPage = useCallback(
@@ -458,13 +477,63 @@ function App() {
       });
       setSelectedSampleIds(new Set());
       await refreshInbox();
-      if (previewTagId === tagId) {
-        const samples = await invoke<FaceSample[]>("list_tag_samples", { tagId });
-        setActiveTagSamples(samples);
-      }
+      await refreshOneTagSamples(tagId);
       setFacesStatus(`已将 ${n} 个样本绑定到「${tagNameById.get(tagId) ?? tagId}」`);
     } catch (e) {
       setFacesStatus(`绑定失败: ${e}`);
+    }
+    setFacesBusy(false);
+  }
+
+  async function handleDeleteInboxSamples(sampleIds: string[]) {
+    if (sampleIds.length === 0) {
+      setFacesStatus("请先勾选要删除的人脸样本");
+      return;
+    }
+    const msg =
+      sampleIds.length === 1
+        ? "删除该未归类人脸样本？"
+        : `删除选中的 ${sampleIds.length} 个未归类人脸样本？`;
+    if (!confirm(msg)) return;
+    setFacesBusy(true);
+    try {
+      const n = await invoke<number>("delete_inbox_samples", { sampleIds });
+      setSelectedSampleIds((prev) => {
+        const next = new Set(prev);
+        for (const id of sampleIds) next.delete(id);
+        return next;
+      });
+      await refreshInbox();
+      setFacesStatus(`已删除 ${n} 个未归类样本`);
+    } catch (e) {
+      setFacesStatus(`删除失败: ${e}`);
+    }
+    setFacesBusy(false);
+  }
+
+  async function handleDeleteTagSamples(tagId: string, sampleIds: string[]) {
+    if (sampleIds.length === 0) {
+      setFacesStatus("请先勾选要删除的模板");
+      return;
+    }
+    const tagName = tagNameById.get(tagId) ?? tagId;
+    const msg =
+      sampleIds.length === 1
+        ? `删除「${tagName}」下的该模板？`
+        : `删除「${tagName}」下选中的 ${sampleIds.length} 个模板？`;
+    if (!confirm(msg)) return;
+    setFacesBusy(true);
+    try {
+      const n = await invoke<number>("delete_tag_samples", { tagId, sampleIds });
+      setSelectedTagSampleKeys((prev) => {
+        const next = new Set(prev);
+        for (const id of sampleIds) next.delete(tagSampleKey(tagId, id));
+        return next;
+      });
+      await refreshOneTagSamples(tagId);
+      setFacesStatus(`已从「${tagName}」删除 ${n} 个模板`);
+    } catch (e) {
+      setFacesStatus(`删除失败: ${e}`);
     }
     setFacesBusy(false);
   }
@@ -480,7 +549,18 @@ function App() {
         next.delete(tagId);
         return next;
       });
-      if (previewTagId === tagId) setPreviewTagId("");
+      setSelectedTagSampleKeys((prev) => {
+        const next = new Set(prev);
+        for (const key of prev) {
+          if (key.startsWith(`${tagId}:`)) next.delete(key);
+        }
+        return next;
+      });
+      setTagSamplesMap((prev) => {
+        const next = { ...prev };
+        delete next[tagId];
+        return next;
+      });
       if (filterTagId === tagId) setFilterTagId("");
       setFacesStatus("标签已删除");
     } catch (e) {
@@ -539,6 +619,16 @@ function App() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTagSample(tagId: string, sampleId: string) {
+    const key = tagSampleKey(tagId, sampleId);
+    setSelectedTagSampleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -807,6 +897,13 @@ function App() {
               <button className="faces-btn" disabled={facesBusy} onClick={refreshInbox}>
                 刷新收件箱
               </button>
+              <button
+                className="faces-btn danger"
+                disabled={facesBusy || selectedSampleIds.size === 0}
+                onClick={() => handleDeleteInboxSamples([...selectedSampleIds])}
+              >
+                删除选中
+              </button>
             </div>
             <div className="sample-grid">
               {inboxSamples.length === 0 ? (
@@ -822,6 +919,19 @@ function App() {
                       checked={selectedSampleIds.has(s.id)}
                       onChange={() => toggleSample(s.id)}
                     />
+                    <button
+                      type="button"
+                      className="sample-delete-btn"
+                      title="删除"
+                      disabled={facesBusy}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteInboxSamples([s.id]);
+                      }}
+                    >
+                      ×
+                    </button>
                     <img src={convertFileSrc(s.thumb_path)} alt={s.id} />
                   </label>
                 ))
@@ -853,44 +963,90 @@ function App() {
               </button>
             </div>
             <ul className="tag-list">
-              {personTags.map((t) => (
-                <li key={t.id} className="tag-row">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selectedTagIds.has(t.id)}
-                      onChange={() => toggleTag(t.id)}
-                    />
-                    <span
-                      className={`tag-name ${previewTagId === t.id ? "active" : ""}`}
-                      onClick={() => setPreviewTagId(t.id === previewTagId ? "" : t.id)}
-                    >
-                      {t.name}
-                    </span>
-                  </label>
-                  <button
-                    className="faces-btn danger"
-                    disabled={facesBusy}
-                    onClick={() => handleDeleteTag(t.id)}
-                  >
-                    删除
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {previewTagId && (
-              <div className="sample-grid compact">
-                {activeTagSamples.length === 0 ? (
-                  <span className="faces-hint">该标签尚无样本</span>
-                ) : (
-                  activeTagSamples.map((s) => (
-                    <div key={s.id} className="sample-card">
-                      <img src={convertFileSrc(s.thumb_path)} alt={s.id} />
+              {personTags.map((t) => {
+                const samples = tagSamplesMap[t.id] ?? [];
+                const selectedInTag = samples.filter((s) =>
+                  selectedTagSampleKeys.has(tagSampleKey(t.id, s.id)),
+                );
+                return (
+                  <li key={t.id} className="tag-block">
+                    <div className="tag-row">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selectedTagIds.has(t.id)}
+                          onChange={() => toggleTag(t.id)}
+                        />
+                        <span className="tag-name">{t.name}</span>
+                        <span className="tag-sample-count">{samples.length} 个模板</span>
+                      </label>
+                      <div className="tag-row-actions">
+                        {selectedInTag.length > 0 && (
+                          <button
+                            className="faces-btn danger"
+                            disabled={facesBusy}
+                            onClick={() =>
+                              handleDeleteTagSamples(
+                                t.id,
+                                selectedInTag.map((s) => s.id),
+                              )
+                            }
+                          >
+                            删除选中模板
+                          </button>
+                        )}
+                        <button
+                          className="faces-btn danger"
+                          disabled={facesBusy}
+                          onClick={() => handleDeleteTag(t.id)}
+                        >
+                          删除标签
+                        </button>
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
+                    <div className="tag-samples">
+                      {samples.length === 0 ? (
+                        <span className="faces-hint">该标签尚无模板，请绑定收件箱样本</span>
+                      ) : (
+                        <div className="sample-grid compact">
+                          {samples.map((s) => {
+                            const selected = selectedTagSampleKeys.has(
+                              tagSampleKey(t.id, s.id),
+                            );
+                            return (
+                              <label
+                                key={s.id}
+                                className={`sample-card ${selected ? "selected" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => toggleTagSample(t.id, s.id)}
+                                />
+                                <button
+                                  type="button"
+                                  className="sample-delete-btn"
+                                  title="删除模板"
+                                  disabled={facesBusy}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteTagSamples(t.id, [s.id]);
+                                  }}
+                                >
+                                  ×
+                                </button>
+                                <img src={convertFileSrc(s.thumb_path)} alt={s.id} />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
           <section className="faces-section">

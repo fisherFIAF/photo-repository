@@ -375,6 +375,56 @@ pub(crate) fn read_folder_tags(folder: String) -> Result<FolderImagesInfo, Strin
     load_folder_images_info(Path::new(&folder))
 }
 
+fn delete_sample_files(dir: &Path, sample_id: &str) -> Result<(), String> {
+    for ext in ["bin", "jpg", "meta.json"] {
+        let path = dir.join(format!("{sample_id}.{ext}"));
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn delete_inbox_samples(sample_ids: Vec<String>) -> Result<usize, String> {
+    if sample_ids.is_empty() {
+        return Err("请至少选择一个样本".into());
+    }
+    let inbox = inbox_dir()?;
+    let mut deleted = 0usize;
+    for sample_id in sample_ids {
+        let bin_path = inbox.join(format!("{sample_id}.bin"));
+        if !bin_path.exists() {
+            return Err(format!("样本不存在: {sample_id}"));
+        }
+        delete_sample_files(&inbox, &sample_id)?;
+        deleted += 1;
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+pub(crate) fn delete_tag_samples(tag_id: String, sample_ids: Vec<String>) -> Result<usize, String> {
+    if sample_ids.is_empty() {
+        return Err("请至少选择一个样本".into());
+    }
+    let file = load_tags()?;
+    if !file.tags.iter().any(|t| t.id == tag_id) {
+        return Err(format!("标签不存在: {tag_id}"));
+    }
+    let dir = person_samples_dir(&tag_id)?;
+    let mut deleted = 0usize;
+    for sample_id in sample_ids {
+        let bin_path = dir.join(format!("{sample_id}.bin"));
+        if !bin_path.exists() {
+            return Err(format!("样本不存在: {sample_id}"));
+        }
+        delete_sample_files(&dir, &sample_id)?;
+        deleted += 1;
+    }
+    Ok(deleted)
+}
+
 #[tauri::command]
 pub(crate) fn delete_person_tag(tag_id: String) -> Result<(), String> {
     let mut file = load_tags()?;

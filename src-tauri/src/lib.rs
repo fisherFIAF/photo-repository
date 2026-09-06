@@ -21,6 +21,8 @@ pub fn run() {
             tags::list_tag_samples,
             tags::read_folder_tags,
             tags::delete_person_tag,
+            tags::delete_inbox_samples,
+            tags::delete_tag_samples,
             face::ensure_face_models,
             face::add_face_samples,
             face::tag_folder,

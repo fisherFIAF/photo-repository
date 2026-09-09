@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Frontend UI Layout
 
-查找、定位或修改任一页面 widget 时，**先阅读** `docs/page-layout.md`，再按文档中的 class / 树结构去 `App.tsx` / `App.css` 改代码。布局树变更后同步更新该文档。
+查找、定位或修改任一页面 widget 时，**先阅读** `docs/page-layout.md`，再按文档中的 class / 文件路径去对应组件改代码。布局树或文件拆分变更后同步更新该文档。
 
 设计或修改 UI 时，必须先核对页面布局层级：子控件（subwidget）的宽高不能超出父容器（parent）。
 

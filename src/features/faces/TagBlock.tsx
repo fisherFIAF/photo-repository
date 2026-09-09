@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FaceSample, PersonTag } from "../../types";
 import { SampleCard } from "./SampleCard";
 
@@ -36,10 +37,22 @@ export function TagBlock({
   onToggleSample,
   onDeleteSamples,
 }: TagBlockProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <li className="tag-block">
       <div className="tag-row">
         <div className="tag-row-main">
+          <button
+            type="button"
+            className="tag-expand-btn"
+            title={expanded ? "收起模板" : "展开模板"}
+            aria-expanded={expanded}
+            aria-label={expanded ? "收起模板" : "展开模板"}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "▾" : "▸"}
+          </button>
           <label className="tag-checkbox">
             <input type="checkbox" checked={selected} onChange={onToggleTag} />
           </label>
@@ -90,25 +103,27 @@ export function TagBlock({
           </button>
         </div>
       </div>
-      <div className="tag-samples">
-        {samples.length === 0 ? (
-          <span className="faces-hint">该标签尚无模板，请绑定收件箱样本</span>
-        ) : (
-          <div className="sample-grid compact">
-            {samples.map((s) => (
-              <SampleCard
-                key={s.id}
-                sample={s}
-                selected={selectedSampleIds.includes(s.id)}
-                disabled={facesBusy}
-                deleteTitle="删除模板"
-                onToggle={() => onToggleSample(s.id)}
-                onDelete={() => onDeleteSamples([s.id])}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {expanded && (
+        <div className="tag-samples">
+          {samples.length === 0 ? (
+            <span className="faces-hint">该标签尚无模板，请绑定收件箱样本</span>
+          ) : (
+            <div className="sample-grid compact">
+              {samples.map((s) => (
+                <SampleCard
+                  key={s.id}
+                  sample={s}
+                  selected={selectedSampleIds.includes(s.id)}
+                  disabled={facesBusy}
+                  deleteTitle="删除模板"
+                  onToggle={() => onToggleSample(s.id)}
+                  onDelete={() => onDeleteSamples([s.id])}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </li>
   );
 }

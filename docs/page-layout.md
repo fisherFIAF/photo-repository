@@ -104,6 +104,8 @@
     │   └── .sample-grid > .sample-card SampleCard.tsx
     ├── .faces-section「2. 人物标签」    TagListSection.tsx
     │   └── .tag-list > .tag-block      TagBlock.tsx
+    │       ├── .tag-row（含 .tag-expand-btn，默认折叠）
+    │       └── .tag-samples（展开时才显示）
     ├── .faces-section「3. 批量打标」    BatchTagSection.tsx
     └── .faces-status
 ```
@@ -114,6 +116,7 @@
 | 收件箱 | `.faces-section` | `features/faces/InboxSection.tsx` |
 | 标签列表 | `.tag-list` | `features/faces/TagListSection.tsx` |
 | 标签块 | `.tag-block` | `features/faces/TagBlock.tsx` |
+| 展开/折叠 | `.tag-expand-btn`（▸/▾） | 同上；默认折叠，不显示模板图 |
 | 样本卡 | `.sample-card` | `features/faces/SampleCard.tsx` |
 | 批量打标 | `.faces-section` | `features/faces/BatchTagSection.tsx` |
 | 底栏 | `.faces-status-bar` | `features/faces/FacesStatusBar.tsx` |

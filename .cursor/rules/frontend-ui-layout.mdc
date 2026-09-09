@@ -1,0 +1,44 @@
+---
+description: Frontend UI layout — read page map first; children must not overflow parents
+globs: src/**/*.{tsx,ts,css,scss}
+alwaysApply: false
+---
+
+# Frontend UI Layout
+
+查找、定位或修改任一页面 widget 时，**先阅读** `docs/page-layout.md`，再按文档中的 class / 树结构去 `App.tsx` / `App.css` 改代码。布局树变更后同步更新该文档。
+
+设计或修改 UI 时，必须先核对页面布局层级：子控件（subwidget）的宽高不能超出父容器（parent）。
+
+## 硬性约束
+
+- 子元素的 `height` / `min-height` / 内容固有高度，不得超过父级可用高度
+- 子元素的 `width` / `min-width` / 内容固有宽度，不得超过父级可用宽度
+- 工具栏、状态栏等固定高度容器内的控件，必须显式限制尺寸（如 `height` / `max-height` / `line-height` / `box-sizing`），不能只靠默认 padding + font-size
+
+## 做法
+
+1. 先确定父容器的固定或可用尺寸（如 toolbar `25px`）
+2. 再给子控件设不超过该尺寸的样式，并用 `align-items: center` 等做垂直/水平对齐
+3. 改完后在布局中目视检查：无溢出、无撑破父级边框
+
+## 反例 / 正例
+
+```css
+/* ❌ BAD — select 无高度上限，原生控件会撑破 25px 工具栏 */
+.toolbar { height: 25px; }
+.toolbar select { font-size: 12px; padding: 1px 4px; }
+
+/* ✅ GOOD — 高度封顶，垂直居中，不越界 */
+.toolbar {
+  height: 25px;
+  display: flex;
+  align-items: center;
+}
+.toolbar select {
+  height: 20px;
+  max-height: 20px;
+  line-height: 18px;
+  box-sizing: border-box;
+}
+```

@@ -186,14 +186,27 @@ html, body, #root {
   align-items: center;
   gap: 4px;
   margin-left: 8px;
+  height: 100%;
 }
 
 .toolbar-filter select {
-  font-size: 12px;
-  padding: 1px 4px;
-  border: 1px solid #b0c4de;
+  height: 20px;
+  max-height: 20px;
+  line-height: 18px;
+  font-size: 11px;
+  padding: 0 6px;
+  border: 1px solid #5dade2;
   border-radius: 3px;
-  background: #fff;
+  background: #ebf5fb;
+  color: #1a5276;
+  box-sizing: border-box;
+}
+
+.toolbar-filter select:hover,
+.toolbar-filter select:focus {
+  border-color: #3498db;
+  background: #d6eaf8;
+  outline: none;
 }
 
 /* --- Toolbar active state --- */

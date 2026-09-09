@@ -100,6 +100,7 @@ function App() {
   const [progressTotal, setProgressTotal] = useState(0);
   const workAreaRef = useRef<HTMLDivElement>(null);
   const imageCountRef = useRef(0);
+  const loadingRef = useRef(false);
 
   // --- Compare view state ---
   const [leftPath, setLeftPath] = useState("");
@@ -210,6 +211,9 @@ function App() {
   // --- Grid view logic ---
   const loadPage = useCallback(
     async (currentFolder: string, currentOffset: number, append: boolean) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+
       const myBatchId = ++batchId;
       const baseIndex = append ? imageCountRef.current : 0;
 
@@ -220,85 +224,88 @@ function App() {
       setLoading(true);
       setProgressCurrent(0);
 
-      await new Promise<void>((resolve, reject) => {
-        let unlistenFn: (() => void) | undefined;
-        let done = false;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          let unlistenFn: (() => void) | undefined;
+          let done = false;
 
-        const finish = () => {
-          if (done) return;
-          done = true;
-          resolve();
-          setTimeout(() => unlistenFn?.(), 0);
-        };
+          const finish = () => {
+            if (done) return;
+            done = true;
+            resolve();
+            setTimeout(() => unlistenFn?.(), 0);
+          };
 
-        const timer = setInterval(() => {
-          if (done) {
-            clearInterval(timer);
-            return;
-          }
-          setImages((prev) => {
-            if (prev.length > 0 && prev.every((img) => img.thumb_ready)) {
+          const timer = setInterval(() => {
+            if (done) {
+              clearInterval(timer);
+              return;
+            }
+            setImages((prev) => {
+              if (prev.length > 0 && prev.every((img) => img.thumb_ready)) {
+                finish();
+              }
+              return prev;
+            });
+          }, 50);
+
+          listen<ThumbProgress>("thumb-progress", (event) => {
+            if (myBatchId !== batchId) {
+              clearInterval(timer);
               finish();
+              return;
             }
-            return prev;
-          });
-        }, 50);
-
-        listen<ThumbProgress>("thumb-progress", (event) => {
-          if (myBatchId !== batchId) {
-            clearInterval(timer);
-            finish();
-            return;
-          }
-          const { index, current, total } = event.payload;
-          setProgressCurrent(current);
-          setProgressTotal(total);
-          setImages((prev) => {
-            const updated = [...prev];
-            const actualIndex = baseIndex + index;
-            if (actualIndex < updated.length) {
-              updated[actualIndex] = {
-                ...updated[actualIndex],
-                thumb_ready: true,
-              };
-            }
-            return updated;
-          });
-        })
-          .then((unlisten) => {
-            unlistenFn = unlisten;
-            invoke<ListImagesResponse>("list_images", {
-              path: currentFolder,
-              offset: currentOffset,
-              limit: PAGE_SIZE,
-            })
-              .then((resp) => {
-                setTotal(resp.total);
-                setImages((prev) => {
-                  const next = append ? [...prev, ...resp.items] : resp.items;
-                  imageCountRef.current = next.length;
-                  return next;
-                });
-                setOffset(currentOffset + resp.items.length);
-                setProgressTotal(resp.items.length);
-                if (resp.items.length === 0) {
-                  clearInterval(timer);
-                  finish();
-                }
-              })
-              .catch((e) => {
-                clearInterval(timer);
-                unlisten();
-                reject(e);
-              });
+            const { index, current, total } = event.payload;
+            setProgressCurrent(current);
+            setProgressTotal(total);
+            setImages((prev) => {
+              const updated = [...prev];
+              const actualIndex = baseIndex + index;
+              if (actualIndex < updated.length) {
+                updated[actualIndex] = {
+                  ...updated[actualIndex],
+                  thumb_ready: true,
+                };
+              }
+              return updated;
+            });
           })
-          .catch((e) => {
-            clearInterval(timer);
-            reject(e);
-          });
-      });
-
-      setLoading(false);
+            .then((unlisten) => {
+              unlistenFn = unlisten;
+              invoke<ListImagesResponse>("list_images", {
+                path: currentFolder,
+                offset: currentOffset,
+                limit: PAGE_SIZE,
+              })
+                .then((resp) => {
+                  setTotal(resp.total);
+                  setImages((prev) => {
+                    const next = append ? [...prev, ...resp.items] : resp.items;
+                    imageCountRef.current = next.length;
+                    return next;
+                  });
+                  setOffset(currentOffset + resp.items.length);
+                  setProgressTotal(resp.items.length);
+                  if (resp.items.length === 0) {
+                    clearInterval(timer);
+                    finish();
+                  }
+                })
+                .catch((e) => {
+                  clearInterval(timer);
+                  unlisten();
+                  reject(e);
+                });
+            })
+            .catch((e) => {
+              clearInterval(timer);
+              reject(e);
+            });
+        });
+      } finally {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     },
     [],
   );
@@ -333,7 +340,7 @@ function App() {
 
   async function handleScroll() {
     const el = workAreaRef.current;
-    if (!el || loading || !folderPath || images.length >= total) return;
+    if (!el || loadingRef.current || !folderPath || images.length >= total) return;
 
     const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
     if (nearBottom) {

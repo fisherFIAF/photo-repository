@@ -48,6 +48,11 @@ fn scan_image_files(dir_path: &Path) -> Result<Vec<PathBuf>, String> {
             }
         }
     }
+    paths.sort_by(|a, b| {
+        let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase());
+        let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase());
+        a_name.cmp(&b_name)
+    });
     Ok(paths)
 }
 
@@ -177,11 +182,7 @@ mod tests {
             .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
             .collect();
 
-        assert_eq!(names.len(), 3);
-        assert!(names.contains(&"a.png".to_string()));
-        assert!(names.contains(&"b.jpg".to_string()));
-        assert!(names.contains(&"d.gif".to_string()));
-        assert!(!names.contains(&"c.txt".to_string()));
+        assert_eq!(names, vec!["a.png", "b.jpg", "d.gif"]);
 
         std::fs::remove_dir_all(&tmp_dir).ok();
     }

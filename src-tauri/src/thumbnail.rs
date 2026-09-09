@@ -1,7 +1,13 @@
 use md5::{Digest, Md5};
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
-const THUMB_MAX_DIM: u32 = 256;
+use image::codecs::jpeg::JpegEncoder;
+use image::ImageEncoder;
+
+const THUMB_MAX_DIM: u32 = 160;
+const JPEG_QUALITY: u8 = 80;
 
 pub(crate) fn get_thumb_cache_dir() -> Result<PathBuf, String> {
     let base = if cfg!(target_os = "linux") {
@@ -25,8 +31,7 @@ pub(crate) fn thumb_path_for(src: &Path) -> Result<PathBuf, String> {
     hasher.update(abs.to_string_lossy().as_bytes());
     let hash = format!("{:x}", hasher.finalize());
     let stem = src.file_stem().unwrap_or_default().to_string_lossy();
-    let ext = src.extension().unwrap_or_default().to_string_lossy();
-    let name = format!("{}_{}.{}", stem, hash, ext);
+    let name = format!("{}_{}.jpg", stem, hash);
     Ok(cache_dir.join(name))
 }
 
@@ -35,8 +40,19 @@ pub(crate) fn generate_thumbnail(src: &Path, dest: &Path) -> Result<(), String> 
         return Ok(());
     }
     let img = image::open(src).map_err(|e| format!("open {}: {}", src.display(), e))?;
-    let resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, image::imageops::FilterType::Triangle);
-    resized.save(dest).map_err(|e| format!("save {}: {}", dest.display(), e))?;
+    let resized = img.thumbnail(THUMB_MAX_DIM, THUMB_MAX_DIM);
+    let rgb = resized.to_rgb8();
+    let file = File::create(dest).map_err(|e| format!("create {}: {}", dest.display(), e))?;
+    let mut writer = BufWriter::new(file);
+    let encoder = JpegEncoder::new_with_quality(&mut writer, JPEG_QUALITY);
+    encoder
+        .write_image(
+            rgb.as_raw(),
+            rgb.width(),
+            rgb.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|e| format!("save {}: {}", dest.display(), e))?;
     Ok(())
 }
 
@@ -80,7 +96,7 @@ mod tests {
         std::fs::create_dir_all(&tmp_dir).unwrap();
 
         let src = tmp_dir.join("source.png");
-        let dest = tmp_dir.join("thumb.png");
+        let dest = tmp_dir.join("thumb.jpg");
 
         create_test_image(&src, 800, 600);
 

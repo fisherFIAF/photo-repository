@@ -9,6 +9,8 @@ interface GridViewProps {
   filterTagId: string;
   folderTagMap: Record<string, string[]>;
   personTags: PersonTag[];
+  hasFolderTab: boolean;
+  loading: boolean;
 }
 
 export function GridView({
@@ -17,6 +19,8 @@ export function GridView({
   filterTagId,
   folderTagMap,
   personTags,
+  hasFolderTab,
+  loading,
 }: GridViewProps) {
   const tagNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -31,10 +35,14 @@ export function GridView({
 
   return (
     <div className="work-area" ref={workAreaRef}>
-      {images.length === 0 ? (
+      {!hasFolderTab ? (
         <div className="empty-state">
           <span>工作区</span>
-          <span>(显示图片列表)</span>
+          <span>点击工具栏「打开文件夹」开始浏览</span>
+        </div>
+      ) : images.length === 0 ? (
+        <div className="empty-state">
+          <span>{loading ? "加载中…" : "此文件夹暂无图片"}</span>
         </div>
       ) : (
         <div className="image-grid">

@@ -7,11 +7,19 @@ import type { ImageEntry, ListImagesResponse, ThumbProgress } from "../../types"
 const PAGE_SIZE = 50;
 let batchId = 0;
 
-export function useGridImages(
-  folderPath: string,
-  setFolderPath: (path: string) => void,
-  setFilterTagId: (id: string) => void,
-) {
+type FolderSession = {
+  images: ImageEntry[];
+  total: number;
+  offset: number;
+};
+
+const emptySession = (): FolderSession => ({
+  images: [],
+  total: 0,
+  offset: 0,
+});
+
+export function useGridImages(activeFolderPath: string) {
   const [images, setImages] = useState<ImageEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -19,25 +27,56 @@ export function useGridImages(
   const [progressCurrent, setProgressCurrent] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const workAreaRef = useRef<HTMLDivElement>(null);
-  const imageCountRef = useRef(0);
   const loadingRef = useRef(false);
-  const folderPathRef = useRef(folderPath);
+  const folderPathRef = useRef(activeFolderPath);
   const offsetRef = useRef(offset);
   const totalRef = useRef(total);
   const imagesLenRef = useRef(images.length);
+  const sessionsRef = useRef<Map<string, FolderSession>>(new Map());
 
-  folderPathRef.current = folderPath;
+  folderPathRef.current = activeFolderPath;
   offsetRef.current = offset;
   totalRef.current = total;
   imagesLenRef.current = images.length;
 
+  const persistActive = useCallback(
+    (next: Partial<FolderSession>) => {
+      const path = folderPathRef.current;
+      if (!path) return;
+      const prev = sessionsRef.current.get(path) ?? emptySession();
+      sessionsRef.current.set(path, { ...prev, ...next });
+    },
+    [],
+  );
+
+  const restoreSession = useCallback((path: string) => {
+    const session = sessionsRef.current.get(path) ?? emptySession();
+    setImages(session.images);
+    setTotal(session.total);
+    setOffset(session.offset);
+    setProgressCurrent(0);
+    setProgressTotal(0);
+  }, []);
+
+  useEffect(() => {
+    if (!activeFolderPath) {
+      setImages([]);
+      setTotal(0);
+      setOffset(0);
+      return;
+    }
+    restoreSession(activeFolderPath);
+  }, [activeFolderPath, restoreSession]);
+
   const loadPage = useCallback(
     async (currentFolder: string, currentOffset: number, append: boolean) => {
-      if (loadingRef.current) return;
+      if (!currentFolder || loadingRef.current) return;
       loadingRef.current = true;
 
       const myBatchId = ++batchId;
-      const baseIndex = append ? imageCountRef.current : 0;
+      const baseIndex = append
+        ? (sessionsRef.current.get(currentFolder)?.images.length ?? 0)
+        : 0;
 
       if (append) {
         setOffset(currentOffset);
@@ -63,6 +102,7 @@ export function useGridImages(
               clearInterval(timer);
               return;
             }
+            if (folderPathRef.current !== currentFolder) return;
             setImages((prev) => {
               if (prev.length > 0 && prev.every((img) => img.thumb_ready)) {
                 finish();
@@ -77,6 +117,7 @@ export function useGridImages(
               finish();
               return;
             }
+            if (folderPathRef.current !== currentFolder) return;
             const { index, current, total: progTotal } = event.payload;
             setProgressCurrent(current);
             setProgressTotal(progTotal);
@@ -89,6 +130,7 @@ export function useGridImages(
                   thumb_ready: true,
                 };
               }
+              persistActive({ images: updated });
               return updated;
             });
           })
@@ -100,14 +142,31 @@ export function useGridImages(
                 limit: PAGE_SIZE,
               })
                 .then((resp) => {
-                  setTotal(resp.total);
-                  setImages((prev) => {
-                    const next = append ? [...prev, ...resp.items] : resp.items;
-                    imageCountRef.current = next.length;
-                    return next;
-                  });
-                  setOffset(currentOffset + resp.items.length);
-                  setProgressTotal(resp.items.length);
+                  const apply = (prevImages: ImageEntry[]) => {
+                    const next = append ? [...prevImages, ...resp.items] : resp.items;
+                    const nextOffset = currentOffset + resp.items.length;
+                    sessionsRef.current.set(currentFolder, {
+                      images: next,
+                      total: resp.total,
+                      offset: nextOffset,
+                    });
+                    return { next, nextOffset };
+                  };
+
+                  if (folderPathRef.current === currentFolder) {
+                    setTotal(resp.total);
+                    setImages((prev) => {
+                      const { next, nextOffset } = apply(prev);
+                      setOffset(nextOffset);
+                      return next;
+                    });
+                    setProgressTotal(resp.items.length);
+                  } else {
+                    const existing =
+                      sessionsRef.current.get(currentFolder)?.images ?? [];
+                    apply(existing);
+                  }
+
                   if (resp.items.length === 0) {
                     clearInterval(timer);
                     finish();
@@ -126,24 +185,38 @@ export function useGridImages(
         });
       } finally {
         loadingRef.current = false;
-        setLoading(false);
+        if (folderPathRef.current === currentFolder) {
+          setLoading(false);
+        }
       }
     },
-    [],
+    [persistActive],
   );
 
-  const handleOpenFolder = useCallback(async () => {
+  /** Pick a directory; returns path or null. Does not mutate tabs. */
+  const pickFolder = useCallback(async (): Promise<string | null> => {
     const selected = await open({ directory: true, multiple: false });
-    if (!selected || typeof selected !== "string") return;
+    if (!selected || typeof selected !== "string") return null;
+    return selected;
+  }, []);
 
-    setFolderPath(selected);
-    setImages([]);
-    imageCountRef.current = 0;
-    setTotal(0);
-    setOffset(0);
-    setFilterTagId("");
-    await loadPage(selected, 0, false);
-  }, [loadPage, setFolderPath, setFilterTagId]);
+  const ensureLoaded = useCallback(
+    async (path: string) => {
+      const session = sessionsRef.current.get(path);
+      if (session && session.images.length > 0) return;
+      await loadPage(path, 0, false);
+    },
+    [loadPage],
+  );
+
+  const dropSession = useCallback((path: string) => {
+    sessionsRef.current.delete(path);
+    if (folderPathRef.current === path) {
+      setImages([]);
+      setTotal(0);
+      setOffset(0);
+    }
+  }, []);
 
   useEffect(() => {
     const el = workAreaRef.current;
@@ -172,6 +245,8 @@ export function useGridImages(
     progressTotal,
     workAreaRef,
     loadPage,
-    handleOpenFolder,
+    pickFolder,
+    ensureLoaded,
+    dropSession,
   };
 }

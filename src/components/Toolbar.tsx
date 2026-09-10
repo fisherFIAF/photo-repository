@@ -1,52 +1,50 @@
-import type { PersonTag, ViewMode } from "../types";
+import type { AppTab, PersonTag } from "../types";
 
 interface ToolbarProps {
-  mode: ViewMode;
-  folderPath: string;
+  activeTab: AppTab | null;
   personTags: PersonTag[];
   filterTagId: string;
-  onSelectGrid: () => void;
-  onSelectCompare: () => void;
-  onSelectFaces: () => void;
-  onFilterChange: (tagId: string) => void;
   onOpenFolder: () => void;
+  onOpenCompare: () => void;
+  onOpenFaces: () => void;
+  onFilterChange: (tagId: string) => void;
 }
 
 export function Toolbar({
-  mode,
-  folderPath,
+  activeTab,
   personTags,
   filterTagId,
-  onSelectGrid,
-  onSelectCompare,
-  onSelectFaces,
-  onFilterChange,
   onOpenFolder,
+  onOpenCompare,
+  onOpenFaces,
+  onFilterChange,
 }: ToolbarProps) {
+  const kind = activeTab?.kind ?? null;
+
   return (
     <div className="toolbar">
       <button
-        className={`toolbar-btn ${mode === "grid" ? "active" : ""}`}
-        onClick={onSelectGrid}
-        title="图片浏览"
+        className={`toolbar-btn ${kind === "folder" ? "active" : ""}`}
+        onClick={onOpenFolder}
+        title="打开文件夹"
       >
-        📁
+        📂
       </button>
       <button
-        className={`toolbar-btn ${mode === "compare" ? "active" : ""}`}
-        onClick={onSelectCompare}
+        className={`toolbar-btn ${kind === "compare" ? "active" : ""}`}
+        onClick={onOpenCompare}
         title="目录比较"
       >
         🔀
       </button>
       <button
-        className={`toolbar-btn ${mode === "faces" ? "active" : ""}`}
-        onClick={onSelectFaces}
+        className={`toolbar-btn ${kind === "faces" ? "active" : ""}`}
+        onClick={onOpenFaces}
         title="人物标签"
       >
         👤
       </button>
-      {mode === "grid" && folderPath && (
+      {kind === "folder" && (
         <div className="toolbar-filter">
           <select
             value={filterTagId}
@@ -60,9 +58,6 @@ export function Toolbar({
               </option>
             ))}
           </select>
-          <button className="toolbar-btn" title="打开文件夹" onClick={onOpenFolder}>
-            📂
-          </button>
         </div>
       )}
     </div>

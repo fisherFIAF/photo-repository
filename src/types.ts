@@ -66,6 +66,27 @@ export interface TagFolderResult {
   skipped: number;
 }
 
+/** @deprecated Prefer AppTab.kind; kept for any leftover references */
 export type ViewMode = "grid" | "compare" | "faces";
 
 export type CompareSide = "left" | "right";
+
+export const MAX_FOLDER_TABS = 7;
+
+export type FolderTab = {
+  kind: "folder";
+  id: string;
+  path: string;
+};
+
+export type CompareTab = {
+  kind: "compare";
+  id: "compare";
+};
+
+export type FacesTab = {
+  kind: "faces";
+  id: "faces";
+};
+
+export type AppTab = FolderTab | CompareTab | FacesTab;

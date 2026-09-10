@@ -93,6 +93,81 @@ html, body, #root {
   outline: none;
 }
 
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 2px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f0f4f8;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  height: 20px;
+  max-height: 20px;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  font-size: 11px;
+  line-height: 18px;
+  color: #333;
+  cursor: pointer;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  background: #e4ecf4;
+}
+
+.tab.active {
+  background: #fff;
+  border-color: #c5d6e8;
+  border-bottom-color: #fff;
+}
+
+.tab-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.tab-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  max-height: 14px;
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1;
+  color: #666;
+}
+
+.tab-close:hover {
+  background: #d0d8e0;
+  color: #111;
+}
+
 .status-bar {
   display: flex;
   align-items: center;
@@ -135,7 +210,7 @@ html, body, #root {
   color: #999;
 }
 
-/* --- View mode switching (DOM 同树共存，靠显隐) --- */
+/* --- View switching by active tab kind (DOM 同树共存，靠显隐) --- */
 
 .layout.compare-mode .work-area,
 .layout.compare-mode .status-bar {
